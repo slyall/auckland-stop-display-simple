@@ -21,7 +21,10 @@ curl "https://api.at.govt.nz/gtfs/v3/stops/8313-ec0c55f5" \
   -H "Ocp-Apim-Subscription-Key: $AT_API_KEY" | jq .
 
 # Get the trips due at a bus stop in two hour window using the stop id ( 8313-ec0c55f5 )
-# Note that API does not accept 0, 00 or 24 for the hour. Use 23 instead  
+# Note that API does not accept 0, 00 or 24 for the hour. Use 23 instead
+curl 'https://api.at.govt.nz/gtfs/v3/stops/8313-ec0c55f5/stoptrips?filter\[date\]=2026-09-02&filter\[start_hour\]=16&filter\[hour_range\]=2'  -H "Ocp-Apim-Subscription-Key: $AT_API_KEY" | jq .
+
+# Or in a more readable format
 curl -G "https://api.at.govt.nz/gtfs/v3/stops/8313-ec0c55f5/stoptrips" \
   -H "Ocp-Apim-Subscription-Key: $AT_API_KEY" \
   --data-urlencode "filter[date]=$(date +%F)" \
