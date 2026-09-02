@@ -39,29 +39,15 @@ curl -G "https://api.at.govt.nz/realtime/legacy/tripupdates?tripid=24-02403-5610
 
 # Scripts
 
-- **stop-id.py** - get the stop id for a bus stop from the stop code ( 8313 -> 8313-ec0c55f5 )
-- **get-stop-trips.py** - get the next buses due at a bus stop using the stop id
-  - runs every 30 minutes or so
-  - saves the list of trips due in next hour to a file ( trip_id, trip_start_time, arrival_time )
-- **display-info.py** - display the bus information in a simple format
-  - runs every minute or so
-  - reads the list of trips due in next hour from a file and checks their delay status
-  - outputs simple csv with estimated time of arrival ( trips_id, services, time, delay ) sorted by next buses due
-- **tell-pico.py** - display the bus information on a Raspberry Pi Pico
-  - runs every minute or so ( dueing waking ours )
-  - outputs time time next two buses are away and sends to pi ( 07, 15 ) 
+- **stop-id.py** - Get the stop_id for a bus stop from the stop code ( 8313 -> 8313-ec0c55f5 )
+- **get-stop-trips.py** - Get the next buses due at a bus stop using the stop_id
+- **display-info.py** - Display the approaching bus information in a simple format
+- **tell-pico.py** - Push the next two bus ETAs to a Raspberry Pi Pico
 
-## Notes for the scripts
-
-- The bus stop code is the number on the bus stop sign ( 8313 )
-- The bus stop id is the number used by the Auckland transport site ( 8313-ec0c55f5 )
-- Scripts should have debug mode that outputs data to screen
-- each need to have output to files so next stage can read
-- API key should be read from environment variable $AT_API_KEY
 
 ## stop-id.py
 
-This script converts a public Auckland Transport stop code into the full stop ID used by the API.
+This script converts a public Auckland Transport stop code into the full stop ID used by the API. Should be only need to be run ocassionally, as the stop ID is static for a given stop code.
 
 Example usage:
 
@@ -80,7 +66,7 @@ This is useful because the AT API uses the longer `stop_id` value for timetable 
 
 ## get-stop-trips.py
 
-This script fetches the upcoming stop trips for a stop ID and prints the next departures in a compact format by default.
+This script fetches the upcoming stop trips for a stop ID and prints the next departures in a compact format by default. Should run every 30 minutes or so.
 
 Example usage:
 
@@ -117,6 +103,8 @@ This is useful when you want a compact list for downstream display scripts, whil
 
 - [AT data sources](https://at.govt.nz/about-us/at-data-sources)
 - [Auckland Transport Developer Portal](https://dev-portal.at.govt.nz/)
+- [Getting started with the Realtime API](https://dev-portal.at.govt.nz/realtime-api)
+
 
 ## Other Projects
 
