@@ -93,6 +93,25 @@ def fetch_stop_trips(api_key: str, stop_id: str, date_value: str, start_hour: in
         raise RuntimeError(f"Invalid JSON returned from AT API: {exc}") from exc
 
 
+def format_stop_trips(payload, json_output=False):
+    """Format stop-trip data for console output.
+
+    Default output is a compact CSV-like format with only the trip id, trip start time,
+    and arrival time. When json_output is true, return the full payload as JSON.
+    """
+    if json_output:
+        return json.dumps(payload, indent=2)
+
+    lines = []
+    for item in payload.get("data", []):
+        attributes = item.get("attributes", {})
+        trip_id = attributes.get("trip_id", "")
+        trip_start_time = attributes.get("trip_start_time", "")
+        arrival_time = attributes.get("arrival_time", "")
+        lines.append(f"{trip_id},{trip_start_time},{arrival_time}")
+    return "\n".join(lines)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Get upcoming Auckland Transport stop trips for a stop id."
@@ -101,7 +120,8 @@ def parse_args():
     parser.add_argument("--file", dest="file_path", help="Read the stop_id from a file instead of the command line")
     parser.add_argument("--date", help="Override the date in YYYY-MM-DD format. Defaults to the current local date.")
     parser.add_argument("--debug", action="store_true", help="Print the API request and extra details")
-    parser.add_argument("--output", help="Write the raw JSON output to a file")
+    parser.add_argument("--output", help="Write the output to a file. Use --json to write the full API JSON payload.")
+    parser.add_argument("--json", action="store_true", help="Output the full JSON payload instead of the compact trip summary")
     return parser.parse_args()
 
 
@@ -142,13 +162,15 @@ def main():
         return 1
 
     data = payload.get("data", [])
+    formatted_output = format_stop_trips(payload, json_output=args.json)
+
     if args.output:
         output_path = Path(args.output)
-        output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        output_path.write_text(formatted_output, encoding="utf-8")
         if args.debug:
             print(f"Saved output to {output_path}")
 
-    print(json.dumps(payload, indent=2))
+    print(formatted_output)
     return 0
 
 

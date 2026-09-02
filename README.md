@@ -42,7 +42,7 @@ curl -G "https://api.at.govt.nz/realtime/legacy/tripupdates?tripid=24-02403-5610
 - **stop-id.py** - get the stop id for a bus stop from the stop code ( 8313 -> 8313-ec0c55f5 )
 - **get-stop-trips.py** - get the next buses due at a bus stop using the stop id
   - runs every 30 minutes or so
-  - saves the list of trips due in next hour to a file ( trip_id, time )
+  - saves the list of trips due in next hour to a file ( trip_id, trip_start_time, arrival_time )
 - **display-info.py** - display the bus information in a simple format
   - runs every minute or so
   - reads the list of trips due in next hour from a file and checks their delay status
@@ -77,6 +77,39 @@ This resolves the Sandringham Road example stop code to:
 ```
 
 This is useful because the AT API uses the longer `stop_id` value for timetable and realtime lookups, while the public stop sign on the street shows only the shorter stop code.
+
+## get-stop-trips.py
+
+This script fetches the upcoming stop trips for a stop ID and prints the next departures in a compact format by default.
+
+Example usage:
+
+```bash
+export AT_API_KEY="your-api-key-here"
+python3 get-stop-trips.py 8313-ec0c55f5
+```
+
+This returns the next trips in a simple CSV-like format using only the trip ID, trip start time, and arrival time:
+
+```bash
+24-02403-74400-2-fb29cf95,20:40:00,21:01:03
+1279-02401-75480-2-cc67cdfd,20:58:00,21:16:00
+```
+
+If you want the full AT API JSON payload instead, use the `--json` flag:
+
+```bash
+python3 get-stop-trips.py 8313-ec0c55f5 --json
+```
+
+You can also write the output to a file:
+
+```bash
+python3 get-stop-trips.py 8313-ec0c55f5 --output trips.txt
+python3 get-stop-trips.py 8313-ec0c55f5 --json --output trips.json
+```
+
+This is useful when you want a compact list for downstream display scripts, while still being able to inspect the complete stop trip metadata when needed.
 
 # Links
 
