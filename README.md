@@ -43,6 +43,14 @@ curl -G "https://api.at.govt.nz/realtime/legacy/tripupdates?tripid=24-02403-5610
   - runs every minute or so ( dueing waking ours )
   - outputs time time next two buses are away and sends to pi ( 07, 15 ) 
 
+## Notes for the scripts
+
+- The bus stop code is the number on the bus stop sign ( 8313 )
+- The bus stop id is the number used by the Auckland transport site ( 8313-ec0c55f5 )
+- Scripts should have debug mode that outputs data to screen
+- each need to have output to files so next stage can read
+- API key should be read from environment variable $AT_API_KEY
+
 ## stop-id.py
 
 This script converts a public Auckland Transport stop code into the full stop ID used by the API.
@@ -60,18 +68,5 @@ This resolves the Sandringham Road example stop code to:
 8313-ec0c55f5
 ```
 
-You can also inspect the fetched stop record directly:
-
-```bash
-curl "https://api.at.govt.nz/gtfs/v3/stops/8313-ec0c55f5" \
-  -H "Ocp-Apim-Subscription-Key: $AT_API_KEY" | jq .
-```
-
 This is useful because the AT API uses the longer `stop_id` value for timetable and realtime lookups, while the public stop sign on the street shows only the shorter stop code.
 
-Notes
-  - The bus stop code is the number on the bus stop sign ( 8313 )
-  - The bus stop id is the number used by the Auckland transport site ( 8313-ec0c55f5 )
-  - Scripts should have debug mode that outputs data to screen
-  - each need to have output to files so next stage can read
-  - API key should be read from environment variable $AT_API_KEY 
