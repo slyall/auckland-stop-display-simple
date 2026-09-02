@@ -42,8 +42,6 @@ curl -G "https://api.at.govt.nz/realtime/legacy/tripupdates?tripid=24-02403-5610
 - **stop-id.py** - Get the stop_id for a bus stop from the stop code ( 8313 -> 8313-ec0c55f5 )
 - **get-stop-trips.py** - Get the next buses due at a bus stop using the stop_id
 - **display-info.py** - Display the approaching bus information in a simple format
-- **tell-pico.py** - Push the next two bus ETAs to a Raspberry Pi Pico
-
 
 ## stop-id.py
 

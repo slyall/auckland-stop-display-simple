@@ -5,18 +5,27 @@
   - runs every 30 minutes or so
   - saves the list of trips due in next hour to a file ( trip_id, trip_start_time, arrival_time )
 - **display-info.py** - Display the approaching bus information in a simple format
-  - runs every minute or so
-  - reads the list of trips due in next hour from a file and checks their delay status
+  - runs every minute or so from cron job
+  - reads the list of trips due in next hour from a file (created by get-stop-trips.py) and checks their delay status
+    - Need simple way to know which ones to check
+    - Probably first time just check all the ones in the file
+      - this might be a one-shot  mode that doesn't read or write to the output file or db, just checks the trips in the file and outputs to screen
+    - Trips can be then marked as past us ( no need to check again ), no left ( check regularly from 5 minutes for sceduled leave time, then every 2 minutes until it has left )
+    -  Checks buses every ( estimated 1/5 of remaining distance ) with miniumum 35s
   - outputs simple csv with estimated time of arrival ( trips_id, route_id (shortened) , time, delay ) sorted by next buses due
-  - Checks buses every ( estimated  /5 ) with miniumum 35s
-  - looks at buses due in in prev 10 minutes or next 30 minutes
-  - needs to mark buses than have gione past as done so they are not checked again
   - buses returning no info assumed on time
-  - ignores buses not due to leave until 2 minutes from in future ( to avoid buses that have not yet started their trip )
-  - outputs to a file for next stage to read
+  - Should query multiple trips at once (API allows this) to reduce number of API calls
   - probably needs some sort of storage file  ( can this be combined with the main output file ? )
-  - use sqlite to keep track of state of trips of interest ( done, last checked time, last delay status , et)
+  - use sqlite to keep track of state of trips of interest ( done, last checked time, last delay status , etc )
+  - Command line to filer in/out trips of interest ( route probably, maybe trip_id too )
   - good test stop is 7149-6d6d1e99 ( Symond St, near Cordis Hotel ) which has a lot of buses
+  - Should optionally output a pretty text version of the display
+    - header with stop name, current time, stop short number
+    - Buses arriving in next 40 minutes, max to show is 10 buses
+    - line has bus route name, time due and minutes that is away 
+  - Initial implementation uses `display-info.db` (SQLite) for trip state and writes `display.csv`
+    atomically for the next stage. It reads `trips.txt` from `get-stop-trips.py` by default.
+  - Run `python3 display-info.py --pretty --stop-name "Symonds St"` for a human-readable view.
 - **tell-pico.py** - Push the next two bus ETAs to a Raspberry Pi Pico
   - runs every minute or so ( dueing waking ours )
   - outputs time time next two buses are away and sends to pi ( 07, 15 ) 
