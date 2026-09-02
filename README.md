@@ -40,9 +40,9 @@ curl -G "https://api.at.govt.nz/realtime/legacy/tripupdates?tripid=24-02403-5610
 # Scripts
 
 - **stop-id.py** - get the stop id for a bus stop from the stop code ( 8313 -> 8313-ec0c55f5 )
-- **get-stop-info.py** - get the next buses due at a bus stop using the stop id
+- **get-stop-trips.py** - get the next buses due at a bus stop using the stop id
   - runs every 30 minutes or so
-  - saves the list of trips due in next hour to a file ( trip_id,services,time )
+  - saves the list of trips due in next hour to a file ( trip_id, time )
 - **display-info.py** - display the bus information in a simple format
   - runs every minute or so
   - reads the list of trips due in next hour from a file and checks their delay status
