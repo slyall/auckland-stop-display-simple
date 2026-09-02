@@ -1,0 +1,168 @@
+Based on info from
+
+https://github.com/SeitzDaniel/auckland-transport-card
+https://dev-portal.at.govt.nz
+- login get account
+
+Products -> create subscription
+
+APis:
+General Transit Feed V3 APIs - v3
+Realtime Compat
+
+Profile page
+Update password etc
+Show subscriptions (limit one) and api keys (2 attached to subscription)
+
+---
+
+queries:
+
+curl "https://api.at.govt.nz/realtime/legacy/?tripid=27-02704-84600-2-8af7b68e"   -H "Ocp-Apim-Subscription-Key: xxxxx" | jq .
+
+-----
+curl -G "https://api.at.govt.nz/gtfs/v3/stops/8425-15788731/stoptrips" \
+  -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY" \
+  -H "Accept-Encoding: gzip" \
+  --data-urlencode "filter[date]=$(date +%F)" \
+  --data-urlencode "filter[start_hour]=$(date +%H | sed 's/^0*//;s/^$/1/')" \
+  --data-urlencode "filter[hour_range]=2"
+
+Notes:
+
+YOUR_API_KEY — get a free subscription key at https://dev-portal.at.govt.nz/, sent as the Ocp-Apim-Subscription-Key header (see auckland-transport-card.js's companion integration api.py).
+filter[start_hour] must be 1–23 (0 is rejected), and filter[hour_range] is capped at 30. The sed above just avoids sending 0 at midnight.
+This returns the scheduled timetable rows for that stop; it does not include live delays/vehicle positions. Those come from a separate, unfiltered feed:
+
+-----
+
+curl "https://api.at.govt.nz/realtime/legacy" \
+  -H "Ocp-Apim-Subscription-Key: YOUR_API_KEY" \
+  -H "Accept-Encoding: gzip"
+
+You'd then match trip_ids from the stoptrips response against entity[].trip_update / entity[].vehicle in that combined realtime feed to know actual delay/position — which is what the integration's build_departures() does.
+
+----------
+
+# AT sends a single stop_time_update object describing the vehicle's next
+# stop, but tolerate a list in case the feed ever follows the spec exactly.
+stop_updates = raw.get("stop_time_update")
+if isinstance(stop_updates, dict):
+    stop_updates = [stop_updates]
+if stop_updates:
+    first = stop_updates[0] or {}
+    update.next_stop_id = first.get("stop_id")
+
+So even though standard GTFS-RT TripUpdate allows a stop_time_update array covering every remaining stop on the trip, Auckland Transport's feed only ever sends one stop_time_update object per trip — the vehicle's next stop. The code comment explicitly calls this out and only defensively handles a list "in case the feed ever follows the spec exactly."
+
+That's why in your raw response you only see one stop per trip_id — it's not a quiet-hours artifact, AT just doesn't publish per-stop timing down the whole route. This is also why build_departures() only applies the precise stop_delay when next_stop_id == trip.stop_id; for any stop further down the route it falls back to the trip-level delay instead, since there's no stop-specific data available for those.
+
+---------
+
+update = realtime.trip_updates.get(trip.trip_id) if realtime else None
+delay = None
+if update is not None:
+    delay = update.delay                      # trip-level delay (from wherever the vehicle currently is)
+    if update.next_stop_id and update.next_stop_id == trip.stop_id:
+        if update.stop_delay is not None:
+            delay = update.stop_delay          # more precise: delay specifically at YOUR stop
+
+expected = trip.scheduled + timedelta(seconds=delay or 0)
+
+So even though standard GTFS-RT TripUpdate allows a stop_time_update array covering every remaining stop on the trip, Auckland Transport's feed only ever sends one stop_time_update object per trip — the vehicle's next stop. The code comment explicitly calls this out and only defensively handles a list "in case the feed ever follows the spec exactly."
+
+That's why in your raw response you only see one stop per trip_id — it's not a quiet-hours artifact, AT just doesn't publish per-stop timing down the whole route. This is also why build_departures() only applies the precise stop_delay when next_stop_id == trip.stop_id; for any stop further down the route it falls back to the trip-level delay instead, since there's no stop-specific data available for those.
+
+----------
+
+The public “short” value like 8425 is treated as the stop code, while the actual unique AT identifier is the stop_id, such as 8425-15788731.
+
+The flow is:
+
+Fetch the full GTFS stop list from Auckland Transport:
+https://api.at.govt.nz/gtfs/v3/stops
+
+Parse each item into a Stop object:
+
+stop_id = the real identifier, like 8425-15788731
+stop_code = the short sign code, like 8425
+stop_name = the human-readable name
+In the search/filter step, it looks for an exact stop-code match first:
+
+exact stop code matches are ranked above everything else
+if the search text matches the stop name or the code, it keeps it
+it then chooses the matching stop and stores:
+CONF_STOP_ID = stop.stop_id
+CONF_STOP_CODE = stop.stop_code
+Once selected, every later timetable/realtime lookup uses the full stop_id, not the short code.
+
+The relevant logic is basically:
+
+I’m checking the stop lookup flow in the integration so I can answer exactly how the short stop code is resolved to the full stop ID and which endpoint it uses.
+
+Searched SeitzDaniel/auckland_transport for "stop_code.*stop_id|CONF_STOP_CODE|stop_code.*search|match.*stop|filter.*stop", no results
+
+Searched SeitzDaniel/auckland_transport for "stop_code|stop_id|search.*stop|match.*stop|StopSelector|select.*stop|filter.*stop", no results
+
+Searched seitzdaniel/auckland_transport for "stop_code stop_name async_get_stops config_flow stop_id code search stop selector", 64 results
+
+I’ve narrowed it down: the integration resolves the public stop code by loading the GTFS stop list and matching the code against each stop’s `stop_code`, then storing the actual `stop_id` it needs for timetable and realtime calls.
+
+Read , lines 1 to 120
+
+Read 
+
+## Yes — but it’s done in the integration, not in the card
+
+The public “short” value like 8425 is treated as the stop code, while the actual unique AT identifier is the stop_id, such as 8425-15788731.
+
+The flow is:
+
+1. Fetch the full GTFS stop list from Auckland Transport:
+   https://api.at.govt.nz/gtfs/v3/stops
+
+2. Parse each item into a Stop object:
+   - stop_id = the real identifier, like 8425-15788731
+   - stop_code = the short sign code, like 8425
+   - stop_name = the human-readable name
+
+3. In the search/filter step, it looks for an exact stop-code match first:
+   - exact stop code matches are ranked above everything else
+   - if the search text matches the stop name or the code, it keeps it
+   - it then chooses the matching stop and stores:
+     - CONF_STOP_ID = stop.stop_id
+     - CONF_STOP_CODE = stop.stop_code
+
+4. Once selected, every later timetable/realtime lookup uses the full stop_id, not the short code.
+
+The relevant logic is basically:
+- fetch all stops
+- compare the user’s search term against stop.stop_code and stop.stop_name
+- pick the best match
+- save the chosen stop.stop_id
+
+That is why the integration can resolve 8425 to 8425-15788731 without you manually typing the full ID.
+
+## API calls involved
+
+For stop lookup:
+- GET https://api.at.govt.nz/gtfs/v3/stops
+
+For the bus board after a stop is chosen:
+- GET https://api.at.govt.nz/gtfs/v3/stops/{stop_id}/stoptrips
+- GET https://api.at.govt.nz/realtime/legacy
+
+And it also validates the API key with:
+- GET https://api.at.govt.nz/gtfs/v3/versions
+
+So the short code is not converted by a weird local mapping table; it is resolved by loading the AT stop catalog and matching the code against that dataset.
+
+--------------
+
+Seems to be:
+
+1. Get List of candidates trips from gtfs for my stop around for 2 hour window
+2. Query those trips in realtime and compare their delay (in realtime) to expected arrival time at my stop (fron gtfs) 
+3. Order them by arrival time, ignore ones that arrived in the past.
+
+
