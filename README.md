@@ -120,6 +120,7 @@ This is useful when you want a compact list for downstream display scripts, whil
 
 ## Other Projects
 
-- [Auckland Transport Card](https://github.com/SeitzDaniel/auckland-transport-card)
+- [Auckland Transport Card](https://github.com/SeitzDaniel/auckland-transport-card) - Uptodate and helped me (and AI) figure out the flow of the AT API
 - [Auckland Live LED Train Map](https://github.com/CDFER/Auckland-LED-Train-Map)
 - [A simplified interface for the Auckland Transport API](https://github.com/Richienb/auckland-transport) - Probably out of date
+- [bus-stop-display](https://github.com/keison-tang/bus-stop-display) - Also using old API, outputs to small hardware display via Arduino
