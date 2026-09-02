@@ -7,6 +7,7 @@ TODO
 
 # Bash Examples
 
+```bash
 # Export you key for later queries
 export AT_API_KEY="your-api-key-here"
 # Get your stop id for a bus stop from the stop code ( 8313 -> 8313-ec0c55f5 )
@@ -26,7 +27,7 @@ curl -G "https://api.at.govt.nz/gtfs/v3/stops/8313-ec0c55f5/stoptrips" \
 # Get the status of two trips using the trip id
 # Note a query for a trip not yet running will return a empty result, so you may need to query for a trip that is currently running or has already run
 curl -G "https://api.at.govt.nz/realtime/legacy/tripupdates?tripid=24-02403-56100-2-0705c91b,24-02403-59700-2-916eceb7" -H "Ocp-Apim-Subscription-Key: $AT_API_KEY" | jq .
-
+```
 
 
 # Scripts
