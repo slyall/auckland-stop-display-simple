@@ -11,7 +11,9 @@ TODO
 You will need an API key to access the Auckland Transport API. You can get one from the [Auckland Transport Developer Portal](https://dev-portal.at.govt.nz/). Once you have your key, export it as an environment variable:
 
 ```bash
-export AT_API_KEY="your-api-key-here"   
+export AT_API_KEY="your-api-key-here"
+```
+
 
 # Docs
 
@@ -57,6 +59,19 @@ curl -G "https://api.at.govt.nz/realtime/legacy/tripupdates?tripid=24-02403-5610
 - **stop-id.py** - Get the stop_id for a bus stop from the stop code ( 8313 -> 8313-ec0c55f5 )
 - **get-stop-trips.py** - Get the next buses due at a bus stop using the stop_id
 - **display-info.py** - Display the approaching bus information in a simple format
+
+## TLDR 
+
+```bash
+# Export your key for later queries
+export AT_API_KEY="your-api-key-here"
+# Get the stop id for a bus stop from the stop code ( 8313 -> 8313-ec0c55f5 )
+python3 stop-id.py 8313
+# Get the next buses due at a bus stop using the stop_id
+python3 get-stop-trips.py 8313-ec0c55f5 --output trips.txt
+# Display the approaching bus information in a simple format
+python3 display-info.py --input trips.txt --pretty  
+```
 
 ## stop-id.py
 
