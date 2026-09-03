@@ -5,6 +5,12 @@ Display information the next buses due at an Auckland bus stop
 # API setup using Auckland transport site
 TODO
 
+# Docs
+
+- Readme.md - This file
+- [Design Notes](docs/design.md) - Design notes for the scripts
+- [Sample API Queries and Responses](docs/samples.md) - Sample API queries and responses
+
 # Bash Examples
 
 ```bash
@@ -73,12 +79,14 @@ export AT_API_KEY="your-api-key-here"
 python3 get-stop-trips.py 8313-ec0c55f5
 ```
 
-This returns the next trips in a simple CSV-like format using only the trip ID, trip start time, and arrival time:
+This returns the next trips in a simple CSV-like format using the trip ID, shortened route ID, and arrival time:
 
 ```bash
-24-02403-74400-2-fb29cf95,20:40:00,21:01:03
-1279-02401-75480-2-cc67cdfd,20:58:00,21:16:00
+24-02403-74400-2-fb29cf95,24B,21:01:03
+1279-02401-75480-2-cc67cdfd,1279,21:16:00
 ```
+
+The display stage reads this file and writes `display.csv` with `route_id,time,minutes`.
 
 If you want the full AT API JSON payload instead, use the `--json` flag:
 

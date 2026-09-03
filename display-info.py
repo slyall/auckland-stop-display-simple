@@ -39,11 +39,15 @@ def connect_database(path):
             scheduled_at TEXT NOT NULL,
             route_id TEXT NOT NULL,
             delay_seconds INTEGER NOT NULL DEFAULT 0,
+            next_stop_id TEXT,
             last_checked_at TEXT,
             completed INTEGER NOT NULL DEFAULT 0
         )
         """
     )
+    columns = {row[1] for row in database.execute("PRAGMA table_info(trips)")}
+    if "next_stop_id" not in columns:
+        database.execute("ALTER TABLE trips ADD COLUMN next_stop_id TEXT")
     database.commit()
     return database
 
@@ -55,13 +59,17 @@ def read_trip_file(path, now):
             if not row or not any(field.strip() for field in row):
                 continue
             if len(row) < 3:
-                raise ValueError(f"{path}:{line_number}: expected trip_id,start_time,arrival_time")
-            trip_id, start_time, arrival_time = (field.strip() for field in row[:3])
+                raise ValueError(f"{path}:{line_number}: expected trip_id,route_id,arrival_time")
+            trip_id, route_id, arrival_time = (field.strip() for field in row[:3])
+            # Accept files from the original three-column producer format:
+            # trip_id,trip_start_time,arrival_time.
+            if len(row) == 3 and route_id.count(":") == 2:
+                route_id = trip_id.split("-", 1)[0]
             try:
                 scheduled_at = parse_trip_time(arrival_time, now.date(), now)
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"{path}:{line_number}: invalid arrival time {arrival_time!r}") from exc
-            trips.append((trip_id, scheduled_at, trip_id.split("-")[0]))
+            trips.append((trip_id, scheduled_at, route_id))
     return trips
 
 
@@ -94,19 +102,26 @@ def fetch_realtime(api_key, trip_ids):
         raise RuntimeError(f"Realtime API request failed: {exc}") from exc
 
     updates = {}
-    for entity in payload.get("entity", []):
+    response = payload.get("response", payload)
+    for entity in response.get("entity", []):
         trip_update = entity.get("trip_update", {})
         trip = trip_update.get("trip", {})
         trip_id = trip.get("trip_id")
         if not trip_id:
             continue
         delay = trip_update.get("delay", 0)
+        next_stop_id = None
         stop_updates = trip_update.get("stop_time_update", [])
         if isinstance(stop_updates, dict):
             stop_updates = [stop_updates]
-        if stop_updates and stop_updates[0].get("arrival", {}).get("delay") is not None:
-            delay = stop_updates[0]["arrival"]["delay"]
-        updates[trip_id] = int(delay or 0)
+        if stop_updates:
+            next_stop_id = stop_updates[0].get("stop_id")
+            stop_delay = stop_updates[0].get("arrival", {}).get("delay")
+            if stop_delay is None:
+                stop_delay = stop_updates[0].get("departure", {}).get("delay")
+            if stop_delay is not None:
+                delay = stop_delay
+        updates[trip_id] = {"delay": int(delay or 0), "next_stop_id": next_stop_id}
     return updates
 
 
@@ -120,16 +135,17 @@ def select_trip_ids(database, now):
     return [row["trip_id"] for row in rows]
 
 
-def make_display_rows(database, now, delays):
+def make_display_rows(database, now, updates, stop_id=None):
     database.executemany(
-        "UPDATE trips SET delay_seconds = ?, last_checked_at = ? WHERE trip_id = ?",
-        [(delay, now.strftime(TIME_FORMAT), trip_id) for trip_id, delay in delays.items()],
+        "UPDATE trips SET delay_seconds = ?, next_stop_id = ?, last_checked_at = ? WHERE trip_id = ?",
+        [(update["delay"], update["next_stop_id"], now.strftime(TIME_FORMAT), trip_id)
+         for trip_id, update in updates.items()],
     )
     cutoff = (now - timedelta(minutes=10)).strftime(TIME_FORMAT)
     database.execute("DELETE FROM trips WHERE scheduled_at < ? OR completed = 1", (cutoff,))
     rows = database.execute(
         """
-        SELECT trip_id, route_id, scheduled_at, delay_seconds
+        SELECT trip_id, route_id, scheduled_at, delay_seconds, next_stop_id
         FROM trips
         WHERE completed = 0 AND scheduled_at BETWEEN ? AND ?
         ORDER BY julianday(scheduled_at) + delay_seconds / 86400.0
@@ -141,6 +157,9 @@ def make_display_rows(database, now, delays):
     for row in rows:
         scheduled = datetime.strptime(row["scheduled_at"], TIME_FORMAT)
         estimated = scheduled + timedelta(seconds=row["delay_seconds"])
+        at_this_stop = stop_id is not None and row["next_stop_id"] == stop_id
+        if estimated < now - timedelta(minutes=1) and not at_this_stop:
+            continue
         result.append({"route_id": row["route_id"], "time": estimated.strftime("%H:%M"),
                        "minutes": max(0, round((estimated - now).total_seconds() / 60)),
                        "delay": row["delay_seconds"]})
@@ -148,8 +167,8 @@ def make_display_rows(database, now, delays):
 
 
 def format_csv(rows):
-    lines = ["route_id,time,minutes,delay"]
-    lines.extend(f"{row['route_id']},{row['time']},{row['minutes']},{row['delay']}" for row in rows)
+    lines = ["route_id,time,minutes"]
+    lines.extend(f"{row['route_id']},{row['time']},{row['minutes']}" for row in rows)
     return "\n".join(lines) + "\n"
 
 
@@ -176,6 +195,7 @@ def parse_args():
     parser.add_argument("--output", default="display.csv")
     parser.add_argument("--pretty", action="store_true", help="Print a human-readable board")
     parser.add_argument("--once", action="store_true", help="Check every trip in the input once")
+    parser.add_argument("--stop-id", help="AT stop ID used to identify buses currently at this stop")
     parser.add_argument("--stop-name")
     return parser.parse_args()
 
@@ -188,8 +208,8 @@ def main():
         with connect_database(args.database) as database:
             ingest_trips(database, trips)
             candidate_ids = [trip_id for trip_id, _, _ in trips] if args.once else select_trip_ids(database, now)
-            delays = fetch_realtime(os.environ.get("AT_API_KEY", ""), candidate_ids) if os.environ.get("AT_API_KEY") else {}
-            rows = make_display_rows(database, now, delays)
+            updates = fetch_realtime(os.environ.get("AT_API_KEY", ""), candidate_ids) if os.environ.get("AT_API_KEY") else {}
+            rows = make_display_rows(database, now, updates, args.stop_id)
             database.commit()
     except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
         print(str(exc), file=sys.stderr)

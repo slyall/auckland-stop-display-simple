@@ -31,9 +31,29 @@ def test_make_display_rows_applies_delay_and_removes_old_trips(tmp_path):
     database.close()
 
 
+def test_read_trip_file_keeps_api_route_id(tmp_path):
+    module = load_module()
+    input_path = tmp_path / "trips.txt"
+    input_path.write_text("27-02707-41700-2-fe6656cf,27H,12:08:56\n", encoding="utf-8")
+
+    trips = module.read_trip_file(input_path, datetime(2026, 9, 3, 12, 0))
+
+    assert trips[0][2] == "27H"
+
+
+def test_make_display_rows_hides_arrivals_more_than_one_minute_old(tmp_path):
+    module = load_module()
+    now = datetime(2026, 9, 3, 12, 0)
+    database = module.connect_database(tmp_path / "display.db")
+    module.ingest_trips(database, [("past-trip", now - timedelta(minutes=2), "24")])
+
+    assert module.make_display_rows(database, now, {}) == []
+    database.close()
+
+
 def test_format_csv_has_stable_display_contract():
     module = load_module()
 
     assert module.format_csv([{"route_id": "24", "time": "12:12", "minutes": 12, "delay": 120}]) == (
-        "route_id,time,minutes,delay\n24,12:12,12,120\n"
+        "route_id,time,minutes\n24,12:12,12\n"
     )

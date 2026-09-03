@@ -72,8 +72,8 @@ def test_format_stop_trips_defaults_to_compact_trip_fields():
     }
 
     assert module.format_stop_trips(payload) == (
-        "24-02403-74400-2-fb29cf95,20:40:00,21:01:03\n"
-        "1279-02401-75480-2-cc67cdfd,20:58:00,21:16:00"
+        "24-02403-74400-2-fb29cf95,24B,21:01:03\n"
+        "1279-02401-75480-2-cc67cdfd,1279,21:16:00"
     )
 
 

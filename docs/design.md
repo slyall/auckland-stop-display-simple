@@ -3,7 +3,7 @@
 - **stop-id.py** - Get the stop_id for a bus stop from the stop code ( 8313 -> 8313-ec0c55f5 )
 - **get-stop-trips.py** - Get the next buses due at a bus stop using the stop_id
   - runs every 30 minutes or so
-  - saves the list of trips due in next hour to a file ( trip_id, trip_start_time, arrival_time )
+  - saves the list of trips due in next hour to a file ( trip_id, route_id, arrival_time )
 - **display-info.py** - Display the approaching bus information in a simple format
   - runs every minute or so from cron job
   - reads the list of trips due in next hour from a file (created by get-stop-trips.py) and checks their delay status
@@ -12,7 +12,7 @@
       - this might be a one-shot  mode that doesn't read or write to the output file or db, just checks the trips in the file and outputs to screen
     - Trips can be then marked as past us ( no need to check again ), no left ( check regularly from 5 minutes for sceduled leave time, then every 2 minutes until it has left )
     -  Checks buses every ( estimated 1/5 of remaining distance ) with miniumum 35s
-  - outputs simple csv with estimated time of arrival ( trips_id, route_id (shortened) , time, delay ) sorted by next buses due
+  - outputs simple csv with estimated time of arrival ( route_id (shortened), time, minutes away ) sorted by next buses due
   - buses returning no info assumed on time
   - Should query multiple trips at once (API allows this) to reduce number of API calls
   - probably needs some sort of storage file  ( can this be combined with the main output file ? )

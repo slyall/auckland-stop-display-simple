@@ -96,8 +96,8 @@ def fetch_stop_trips(api_key: str, stop_id: str, date_value: str, start_hour: in
 def format_stop_trips(payload, json_output=False):
     """Format stop-trip data for console output.
 
-    Default output is a compact CSV-like format with only the trip id, trip start time,
-    and arrival time. When json_output is true, return the full payload as JSON.
+    Default output is a compact CSV-like format with trip id, route id, and arrival time.
+    When json_output is true, return the full payload as JSON.
     """
     if json_output:
         return json.dumps(payload, indent=2)
@@ -106,9 +106,9 @@ def format_stop_trips(payload, json_output=False):
     for item in payload.get("data", []):
         attributes = item.get("attributes", {})
         trip_id = attributes.get("trip_id", "")
-        trip_start_time = attributes.get("trip_start_time", "")
+        route_id = attributes.get("route_id", "").split("-", 1)[0]
         arrival_time = attributes.get("arrival_time", "")
-        lines.append(f"{trip_id},{trip_start_time},{arrival_time}")
+        lines.append(f"{trip_id},{route_id},{arrival_time}")
     return "\n".join(lines)
 
 
