@@ -41,6 +41,31 @@ def test_read_trip_file_keeps_api_route_id(tmp_path):
     assert trips[0][2] == "27H"
 
 
+def test_read_trip_file_returns_stop_metadata(tmp_path):
+    module = load_module()
+    input_path = tmp_path / "trips.txt"
+    input_path.write_text(
+        "# stop_id=7149-6d6d1e99\n# stop_name=Symonds Street/Karangahape Road\n",
+        encoding="utf-8",
+    )
+
+    trips, stop_id, stop_name = module.read_trip_file(
+        input_path, datetime(2026, 9, 3, 12, 0), return_stop_id=True, return_stop_name=True
+    )
+
+    assert trips == []
+    assert stop_id == "7149-6d6d1e99"
+    assert stop_name == "Symonds Street/Karangahape Road"
+
+
+def test_format_pretty_includes_short_stop_id_and_name():
+    module = load_module()
+
+    assert module.format_pretty(
+        [], datetime(2026, 9, 3, 12, 0), "Symonds Street/Karangahape Road", "7149-6d6d1e99"
+    ) == "7149 - Symonds Street/Karangahape Road  12:00\n"
+
+
 def test_make_display_rows_hides_arrivals_more_than_one_minute_old(tmp_path):
     module = load_module()
     now = datetime(2026, 9, 3, 12, 0)

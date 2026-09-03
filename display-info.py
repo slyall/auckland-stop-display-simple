@@ -66,15 +66,19 @@ def connect_database(path):
     return database
 
 
-def read_trip_file(path, now, return_stop_id=False):
+def read_trip_file(path, now, return_stop_id=False, return_stop_name=False):
     trips = []
     stop_id = None
+    stop_name = None
     with Path(path).open(newline="", encoding="utf-8") as source:
         for line_number, row in enumerate(csv.reader(source), 1):
             if not row or not any(field.strip() for field in row):
                 continue
             if row[0].strip().startswith("# stop_id="):
                 stop_id = row[0].strip().split("=", 1)[1].strip() or None
+                continue
+            if row[0].strip().startswith("# stop_name="):
+                stop_name = row[0].strip().split("=", 1)[1].strip() or None
                 continue
             if len(row) < 3:
                 raise ValueError(f"{path}:{line_number}: expected trip_id,route_id,arrival_time")
@@ -96,7 +100,11 @@ def read_trip_file(path, now, return_stop_id=False):
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"{path}:{line_number}: invalid arrival time {arrival_time!r}") from exc
             trips.append((trip_id, scheduled_at, route_id, requested_stop_sequence))
-    return (trips, stop_id) if return_stop_id else trips
+    if return_stop_id and return_stop_name:
+        return trips, stop_id, stop_name
+    if return_stop_id:
+        return trips, stop_id
+    return trips
 
 
 def ingest_trips(database, trips):
@@ -276,9 +284,11 @@ def format_csv(rows):
     return "\n".join(lines) + "\n"
 
 
-def format_pretty(rows, now, stop_name=None):
+def format_pretty(rows, now, stop_name=None, stop_id=None):
     title = stop_name or "Bus departures"
-    lines = [f"{title}  {now.strftime('%H:%M')}" ]
+    short_stop_id = stop_id.split("-", 1)[0] if stop_id else None
+    header = f"{short_stop_id} - {title}" if short_stop_id else title
+    lines = [f"{header}  {now.strftime('%H:%M')}" ]
     lines.extend(f"{row['route_id']:<8} {row['time']}  ({row['minutes']} min, {row['stops_away'] if row['stops_away'] is not None else '?'} stops)" for row in rows)
     return "\n".join(lines) + "\n"
 
@@ -309,7 +319,9 @@ def main():
     args = parse_args()
     now = datetime.now().replace(microsecond=0)
     try:
-        trips, file_stop_id = read_trip_file(args.input, now, return_stop_id=True)
+        trips, file_stop_id, file_stop_name = read_trip_file(
+            args.input, now, return_stop_id=True, return_stop_name=True
+        )
         stop_id = args.stop_id or file_stop_id
         with connect_database(args.database) as database:
             ingest_trips(database, trips)
@@ -326,7 +338,8 @@ def main():
     except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
         print(str(exc), file=sys.stderr)
         return 1
-    output = format_pretty(rows, now, args.stop_name) if args.pretty else format_csv(rows)
+    stop_name = args.stop_name or file_stop_name
+    output = format_pretty(rows, now, stop_name, stop_id) if args.pretty else format_csv(rows)
     if args.pretty:
         print(output, end="")
     else:

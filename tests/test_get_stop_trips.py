@@ -86,6 +86,35 @@ def test_format_stop_trips_includes_stop_id_metadata():
     )
 
 
+def test_format_stop_trips_includes_stop_name_metadata():
+    module = load_module()
+
+    assert module.format_stop_trips(
+        {"data": []}, stop_id="7149-6d6d1e99", stop_name="Symonds Street/Karangahape Road"
+    ) == (
+        "# stop_id=7149-6d6d1e99\n"
+        "# stop_name=Symonds Street/Karangahape Road"
+    )
+
+
+def test_fetch_stop_info_returns_stop_name(monkeypatch):
+    module = load_module()
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            return b'{"data": {"attributes": {"stop_name": "Symonds Street/Karangahape Road"}}}'
+
+    monkeypatch.setattr(module.request, "urlopen", lambda req, timeout: Response())
+
+    assert module.fetch_stop_info("key", "7149-6d6d1e99") == "Symonds Street/Karangahape Road"
+
+
 def test_format_stop_trips_includes_stop_sequence():
     module = load_module()
     payload = {"data": [{"attributes": {

@@ -93,7 +93,35 @@ def fetch_stop_trips(api_key: str, stop_id: str, date_value: str, start_hour: in
         raise RuntimeError(f"Invalid JSON returned from AT API: {exc}") from exc
 
 
-def format_stop_trips(payload, json_output=False, stop_id=None):
+def fetch_stop_info(api_key: str, stop_id: str, debug: bool = False):
+    """Fetch the stop name for a stop ID."""
+    url = f"{API_URL}/{stop_id}"
+    if debug:
+        print(f"Requesting: {url}")
+
+    req = request.Request(
+        url,
+        headers={"Ocp-Apim-Subscription-Key": api_key, "Accept": "application/json"},
+        method="GET",
+    )
+    try:
+        with request.urlopen(req, timeout=30) as response:
+            payload = response.read().decode("utf-8")
+    except error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"AT API request failed: {exc.code} {exc.reason}\n{body}") from exc
+    except error.URLError as exc:
+        raise RuntimeError(f"Could not reach AT API: {exc}") from exc
+
+    try:
+        response = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Invalid JSON returned from AT API: {exc}") from exc
+
+    return response.get("data", {}).get("attributes", {}).get("stop_name", "")
+
+
+def format_stop_trips(payload, json_output=False, stop_id=None, stop_name=None):
     """Format stop-trip data for console output.
 
     Default output is a compact CSV-like format with trip id, route id, arrival time, and stop sequence.
@@ -103,6 +131,8 @@ def format_stop_trips(payload, json_output=False, stop_id=None):
         return json.dumps(payload, indent=2)
 
     lines = [f"# stop_id={stop_id}"] if stop_id else []
+    if stop_name is not None:
+        lines.append(f"# stop_name={stop_name}")
     for item in payload.get("data", []):
         attributes = item.get("attributes", {})
         trip_id = attributes.get("trip_id", "")
@@ -159,13 +189,14 @@ def main():
         print(f"Using date={query_date.isoformat()} start_hour={start_hour} hour_range={hour_range}")
 
     try:
+        stop_name = fetch_stop_info(api_key, stop_id, debug=args.debug)
         payload = fetch_stop_trips(api_key, stop_id, query_date.isoformat(), start_hour, hour_range, debug=args.debug)
     except RuntimeError as exc:
         print(exc, file=sys.stderr)
         return 1
 
     data = payload.get("data", [])
-    formatted_output = format_stop_trips(payload, json_output=args.json, stop_id=stop_id)
+    formatted_output = format_stop_trips(payload, json_output=args.json, stop_id=stop_id, stop_name=stop_name)
 
     if args.output:
         output_path = Path(args.output)
