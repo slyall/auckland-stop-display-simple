@@ -86,6 +86,18 @@ def test_format_stop_trips_includes_stop_id_metadata():
     )
 
 
+def test_format_stop_trips_includes_stop_sequence():
+    module = load_module()
+    payload = {"data": [{"attributes": {
+        "trip_id": "trip",
+        "route_id": "24B-202",
+        "arrival_time": "12:01:17",
+        "stop_sequence": 26,
+    }}]}
+
+    assert module.format_stop_trips(payload) == "trip,24B,12:01:17,26"
+
+
 def test_format_stop_trips_json_output_keeps_full_api_payload():
     module = load_module()
     payload = {

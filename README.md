@@ -79,16 +79,16 @@ export AT_API_KEY="your-api-key-here"
 python3 get-stop-trips.py 8313-ec0c55f5
 ```
 
-This returns the next trips in a simple CSV-like format using the trip ID, shortened route ID, and arrival time:
+This returns the next trips in a simple CSV-like format using the trip ID, shortened route ID, arrival time, and stop sequence:
 
 ```bash
-24-02403-74400-2-fb29cf95,24B,21:01:03
-1279-02401-75480-2-cc67cdfd,1279,21:16:00
+24-02403-74400-2-fb29cf95,24B,21:01:03,26
+1279-02401-75480-2-cc67cdfd,1279,21:16:00,22
 ```
 
 The output also includes the stop ID as metadata so `display-info.py` can apply a stop-specific
 realtime delay only when the feed is reporting that same stop. The display stage reads this file
-and writes `display.csv` with `route_id,time,minutes`.
+and writes `display.csv` with `route_id,time,minutes,stops_away`. `stops_away` is calculated separately for each trip from its requested stop sequence and the realtime next-stop sequence. It is blank when realtime sequence data is unavailable.
 
 The display stage checks trips scheduled from 15 minutes ago through 45 minutes ahead. Realtime
 delays are signed seconds: a negative delay moves the estimated arrival earlier than scheduled.

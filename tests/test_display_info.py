@@ -26,7 +26,7 @@ def test_make_display_rows_applies_delay_and_removes_old_trips(tmp_path):
 
     rows = module.make_display_rows(database, now, {})
 
-    assert rows == [{"route_id": "24", "time": "12:12", "minutes": 12, "delay": 120}]
+    assert rows == [{"route_id": "24", "time": "12:12", "minutes": 12, "delay": 120, "stops_away": None}]
     assert database.execute("SELECT COUNT(*) FROM trips").fetchone()[0] == 1
     database.close()
 
@@ -64,7 +64,7 @@ def test_make_display_rows_fills_display_after_skipping_old_arrivals(tmp_path):
 
     rows = module.make_display_rows(database, now, {})
 
-    assert rows == [{"route_id": "75", "time": "12:10", "minutes": 10, "delay": 0}]
+    assert rows == [{"route_id": "75", "time": "12:10", "minutes": 10, "delay": 0, "stops_away": None}]
     database.close()
 
 
@@ -78,7 +78,7 @@ def test_make_display_rows_applies_negative_delay(tmp_path):
         "delay": -590, "stop_delay": None, "next_stop_id": None,
     }})
 
-    assert rows == [{"route_id": "24", "time": "12:00", "minutes": 0, "delay": -590}]
+    assert rows == [{"route_id": "24", "time": "12:00", "minutes": 0, "delay": -590, "stops_away": None}]
     database.close()
 
 
@@ -95,9 +95,39 @@ def test_make_display_rows_uses_stop_delay_only_at_that_stop(tmp_path):
     database.close()
 
 
+def test_make_display_rows_calculates_stops_away_per_trip(tmp_path):
+    module = load_module()
+    now = datetime(2026, 9, 3, 12, 0)
+    database = module.connect_database(tmp_path / "display.db")
+    module.ingest_trips(database, [("trip", now + timedelta(minutes=10), "24", 26)])
+
+    rows = module.make_display_rows(database, now, {"trip": {
+        "delay": 0, "stop_delay": None, "next_stop_id": "other-stop",
+        "next_stop_sequence": 22,
+    }})
+
+    assert rows[0]["stops_away"] == 4
+    database.close()
+
+
+def test_make_display_rows_hides_trip_after_requested_stop(tmp_path):
+    module = load_module()
+    now = datetime(2026, 9, 3, 12, 0)
+    database = module.connect_database(tmp_path / "display.db")
+    module.ingest_trips(database, [("trip", now + timedelta(minutes=10), "24", 26)])
+
+    rows = module.make_display_rows(database, now, {"trip": {
+        "delay": 0, "stop_delay": None, "next_stop_id": "other-stop",
+        "next_stop_sequence": 27,
+    }})
+
+    assert rows == []
+    database.close()
+
+
 def test_format_csv_has_stable_display_contract():
     module = load_module()
 
     assert module.format_csv([{"route_id": "24", "time": "12:12", "minutes": 12, "delay": 120}]) == (
-        "route_id,time,minutes\n24,12:12,12\n"
+        "route_id,time,minutes,stops_away\n24,12:12,12,\n"
     )
