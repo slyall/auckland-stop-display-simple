@@ -1,0 +1,14 @@
+Commands Used for debugging
+
+Using the Cordis stop on Symond's steet. Since very busy
+
+python3 get-stop-trips.py 7149-6d6d1e99 --output temp/trips-cordis.txt && python3 display-info.py --input temp/trips-cordis.txt --database temp/display-info-cordis.db --output temp/display-cordis.csv
+
+Halsey St is Medium - Seems to get lots of buses with not active location
+
+python3 get-stop-trips.py 1319-b41ddf26 --output temp/trips-halsey.txt && python3 display-info.py --input temp/trips-halsey.txt --database temp/display-info-halsey.db --output temp/display-halsey.csv
+
+Edendale is much quieter. Only a bus every 10 minutes or less
+
+python3 get-stop-trips.py 8313-ec0c55f5 --output temp/trips-sandringham.txt && python3 display-info.py --input temp/trips-sandringham.txt --database temp/display-info-sandringham.db --output temp/display-sandringham.csv
+
