@@ -4,6 +4,8 @@ Display information the next buses due at an Auckland bus stop
 
 A series of scripts to get the next buses due at a bus stop in Auckland, New Zealand, using the Auckland Transport API. The scripts can be run from a cron job or similar scheduler to update a display with the next buses due at a bus stop.
 
+![Halsey Street Pretty Display output](docs/halsey-pretty.png)
+
 # API setup using Auckland transport site
 
 TODO
