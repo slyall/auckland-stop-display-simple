@@ -51,6 +51,23 @@ def test_make_display_rows_hides_arrivals_more_than_one_minute_old(tmp_path):
     database.close()
 
 
+def test_make_display_rows_fills_display_after_skipping_old_arrivals(tmp_path):
+    module = load_module()
+    now = datetime(2026, 9, 3, 12, 0)
+    database = module.connect_database(tmp_path / "display.db")
+    module.ingest_trips(database, [
+        (f"old-trip-{number}", now - timedelta(minutes=2), "old")
+        for number in range(12)
+    ] + [
+        ("next-trip", now + timedelta(minutes=10), "75"),
+    ])
+
+    rows = module.make_display_rows(database, now, {})
+
+    assert rows == [{"route_id": "75", "time": "12:10", "minutes": 10, "delay": 0}]
+    database.close()
+
+
 def test_make_display_rows_applies_negative_delay(tmp_path):
     module = load_module()
     now = datetime(2026, 9, 3, 12, 0)

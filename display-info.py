@@ -18,6 +18,11 @@ LOOKBACK_MINUTES = 15
 LOOKAHEAD_MINUTES = 45
 
 
+def debug_log(enabled, message):
+    if enabled:
+        print(f"[debug] {message}", file=sys.stderr)
+
+
 def parse_trip_time(value, service_date, now):
     """Turn an AT time, including times after midnight, into local datetime."""
     parts = [int(part) for part in value.split(":")]
@@ -93,10 +98,12 @@ def ingest_trips(database, trips):
     )
 
 
-def fetch_realtime(api_key, trip_ids):
+def fetch_realtime(api_key, trip_ids, debug=False):
     if not trip_ids:
+        debug_log(debug, "realtime query skipped: no candidate trips")
         return {}
     query = parse.urlencode({"tripid": ",".join(trip_ids)})
+    debug_log(debug, f"realtime query: {', '.join(trip_ids)}")
     request_object = request.Request(
         f"{REALTIME_URL}?{query}",
         headers={"Ocp-Apim-Subscription-Key": api_key, "Accept": "application/json"},
@@ -133,20 +140,58 @@ def fetch_realtime(api_key, trip_ids):
             "stop_delay": stop_delay,
             "next_stop_id": next_stop_id,
         }
+        debug_log(
+            debug,
+            f"realtime response {trip_id}: trip delay={trip_delay}s, "
+            f"stop delay={stop_delay if stop_delay is not None else 'none'}s, "
+            f"next stop={next_stop_id or 'unknown'}",
+        )
+    missing_ids = [trip_id for trip_id in trip_ids if trip_id not in updates]
+    for trip_id in missing_ids:
+        debug_log(debug, f"realtime response {trip_id}: no update; existing database delay will be kept")
     return updates
 
 
-def select_trip_ids(database, now):
+def select_trip_ids(database, now, debug=False):
     lower = (now - timedelta(minutes=LOOKBACK_MINUTES)).strftime(TIME_FORMAT)
     upper = (now + timedelta(minutes=LOOKAHEAD_MINUTES)).strftime(TIME_FORMAT)
+    debug_log(debug, f"candidate window: {lower} through {upper}")
+    all_rows = database.execute(
+        "SELECT trip_id, scheduled_at, completed FROM trips ORDER BY scheduled_at"
+    ).fetchall()
+    for row in all_rows:
+        scheduled = datetime.strptime(row["scheduled_at"], TIME_FORMAT)
+        if row["completed"]:
+            status = "already departed (marked completed)"
+        elif scheduled < now - timedelta(minutes=LOOKBACK_MINUTES):
+            status = "too early / already departed"
+        elif scheduled > now + timedelta(minutes=LOOKAHEAD_MINUTES):
+            status = "too late for the lookahead window"
+        else:
+            status = "selected"
+        debug_log(debug, f"candidate {row['trip_id']}: scheduled {row['scheduled_at']} -> {status}")
     rows = database.execute(
         "SELECT trip_id FROM trips WHERE completed = 0 AND scheduled_at BETWEEN ? AND ?",
         (lower, upper),
     ).fetchall()
-    return [row["trip_id"] for row in rows]
+    selected_ids = [row["trip_id"] for row in rows]
+    debug_log(debug, f"candidate trips to check: {', '.join(selected_ids) or 'none'}")
+    return selected_ids
 
 
-def make_display_rows(database, now, updates, stop_id=None):
+def debug_input_trips(trips, now, debug):
+    for trip_id, scheduled, _ in trips:
+        if scheduled < now - timedelta(minutes=LOOKBACK_MINUTES):
+            status = "too early / already departed"
+        elif scheduled > now + timedelta(minutes=LOOKAHEAD_MINUTES):
+            status = "too late for the lookahead window"
+        else:
+            status = "selected (--once)"
+        debug_log(debug, f"candidate {trip_id}: scheduled {scheduled.strftime(TIME_FORMAT)} -> {status}")
+
+
+def make_display_rows(database, now, updates, stop_id=None, debug=False):
+    debug_log(debug, f"checking {len(updates)} realtime trip update(s)")
     database.executemany(
         "UPDATE trips SET delay_seconds = ?, next_stop_id = ?, last_checked_at = ? WHERE trip_id = ?",
         [(update["stop_delay"] if stop_id and update["next_stop_id"] == stop_id and update["stop_delay"] is not None
@@ -161,7 +206,6 @@ def make_display_rows(database, now, updates, stop_id=None):
         FROM trips
         WHERE completed = 0 AND scheduled_at BETWEEN ? AND ?
         ORDER BY julianday(scheduled_at) + delay_seconds / 86400.0
-        LIMIT 12
         """,
         (cutoff, (now + timedelta(minutes=LOOKAHEAD_MINUTES)).strftime(TIME_FORMAT)),
     ).fetchall()
@@ -170,11 +214,21 @@ def make_display_rows(database, now, updates, stop_id=None):
         scheduled = datetime.strptime(row["scheduled_at"], TIME_FORMAT)
         estimated = scheduled + timedelta(seconds=row["delay_seconds"])
         at_this_stop = stop_id is not None and row["next_stop_id"] == stop_id
+        debug_log(
+            debug,
+            f"calculation {row['trip_id']}: scheduled {row['scheduled_at']} + "
+            f"delay {row['delay_seconds']}s = arrival {estimated.strftime('%Y-%m-%d %H:%M:%S')} "
+            f"(next stop={row['next_stop_id'] or 'unknown'})",
+        )
         if estimated < now - timedelta(minutes=1) and not at_this_stop:
+            debug_log(debug, f"display {row['trip_id']}: skip, already departed our stop")
             continue
+        debug_log(debug, f"display {row['trip_id']}: show as {row['route_id']} at {estimated.strftime('%H:%M')}")
         result.append({"route_id": row["route_id"], "time": estimated.strftime("%H:%M"),
                        "minutes": max(0, round((estimated - now).total_seconds() / 60)),
                        "delay": row["delay_seconds"]})
+        if len(result) == 12:
+            break
     return result
 
 
@@ -207,6 +261,7 @@ def parse_args():
     parser.add_argument("--output", default="display.csv")
     parser.add_argument("--pretty", action="store_true", help="Print a human-readable board")
     parser.add_argument("--once", action="store_true", help="Check every trip in the input once")
+    parser.add_argument("--debug", action="store_true", help="Print candidate, realtime, and display decisions")
     parser.add_argument("--stop-id", help="AT stop ID used to identify buses currently at this stop")
     parser.add_argument("--stop-name")
     return parser.parse_args()
@@ -220,9 +275,15 @@ def main():
         stop_id = args.stop_id or file_stop_id
         with connect_database(args.database) as database:
             ingest_trips(database, trips)
-            candidate_ids = [trip_id for trip_id, _, _ in trips] if args.once else select_trip_ids(database, now)
-            updates = fetch_realtime(os.environ.get("AT_API_KEY", ""), candidate_ids) if os.environ.get("AT_API_KEY") else {}
-            rows = make_display_rows(database, now, updates, stop_id)
+            candidate_ids = [trip_id for trip_id, _, _ in trips] if args.once else select_trip_ids(database, now, args.debug)
+            if args.once:
+                debug_input_trips(trips, now, args.debug)
+                debug_log(args.debug, f"candidate trips to check (--once): {', '.join(candidate_ids) or 'none'}")
+            updates = fetch_realtime(os.environ.get("AT_API_KEY", ""), candidate_ids, args.debug) if os.environ.get("AT_API_KEY") else {}
+            if candidate_ids and not os.environ.get("AT_API_KEY"):
+                debug_log(args.debug, "realtime query skipped: AT_API_KEY is not set; existing database delays will be used")
+            rows = make_display_rows(database, now, updates, stop_id, args.debug)
+            debug_log(args.debug, f"display result: {len(rows)} trip(s)")
             database.commit()
     except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
         print(str(exc), file=sys.stderr)
