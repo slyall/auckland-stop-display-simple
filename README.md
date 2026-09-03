@@ -1,17 +1,27 @@
 # auckland-stop-display-simple
+
 Display information the next buses due at an Auckland bus stop
 
+A series of scripts to get the next buses due at a bus stop in Auckland, New Zealand, using the Auckland Transport API. The scripts can be run from a cron job or similar scheduler to update a display with the next buses due at a bus stop.
 
 # API setup using Auckland transport site
+
 TODO
+
+You will need an API key to access the Auckland Transport API. You can get one from the [Auckland Transport Developer Portal](https://dev-portal.at.govt.nz/). Once you have your key, export it as an environment variable:
+
+```bash
+export AT_API_KEY="your-api-key-here"   
 
 # Docs
 
-- Readme.md - This file
+- README.md - This file
 - [Design Notes](docs/design.md) - Design notes for the scripts
 - [Sample API Queries and Responses](docs/samples.md) - Sample API queries and responses
+- [Notes](docs/notes.md) - Some testing command lines and the like. Maybe will add notes later on the scripts and how they work, but for now just some notes on the API and testing.
 
-# Bash Examples
+
+# Bash/Curl Examples for using the API - See also [Sample API Queries and Responses](docs/samples.md)
 
 ```bash
 # Export you key for later queries
@@ -41,7 +51,6 @@ curl -G "https://api.at.govt.nz/gtfs/v3/stops/8313-ec0c55f5/stoptrips" \
 # Note a query for a trip not yet running will return a empty result, so you may need to query for a trip that is currently running or has already run
 curl -G "https://api.at.govt.nz/realtime/legacy/tripupdates?tripid=24-02403-56100-2-0705c91b,24-02403-59700-2-916eceb7" -H "Ocp-Apim-Subscription-Key: $AT_API_KEY" | jq .
 ```
-
 
 # Scripts
 
@@ -112,6 +121,63 @@ python3 get-stop-trips.py 8313-ec0c55f5 --json --output trips.json
 ```
 
 This is useful when you want a compact list for downstream display scripts, while still being able to inspect the complete stop trip metadata when needed.
+
+## display-info.py
+
+This script reads the trip list produced by `get-stop-trips.py`, applies realtime trip delays when `AT_API_KEY` is set, and produces the next departures in a display-friendly format. It keeps trip and delay state in a SQLite database so repeated runs can update the display without losing the last known delay.
+
+For a normal run, invoke these commands as often as needed from a scheduler or shell:
+
+```bash
+export AT_API_KEY="your-api-key-here"
+python3 get-stop-trips.py 8313-ec0c55f5 --output trips.txt
+python3 display-info.py
+```
+
+The default output is written to `display.csv` and is also printed to standard output:
+
+```text
+route_id,time,minutes,stops_away
+24B,21:01,12,
+1279,21:16,27,
+```
+
+The default files are `trips.txt`, `display-info.db`, and `display.csv`. Use the options below when running more than one stop or when using different file locations:
+
+```bash
+python3 display-info.py \
+  --input temp/trips-sandringham.txt \
+  --database temp/display-info-sandringham.db \
+  --output temp/display-sandringham.csv
+```
+
+For a human-readable board printed to the terminal, use `--pretty`. This does not write the CSV output file:
+
+```bash
+python3 display-info.py --input trips.txt --pretty
+```
+
+Use `--once` when the input file should be checked in full, such as for a one-off test. Without it, only trips scheduled from 15 minutes ago through 45 minutes ahead are checked:
+
+```bash
+python3 display-info.py --input trips.txt --once --pretty
+```
+
+The trip file normally includes the stop ID and stop name as metadata, so the script can identify the requested stop and show it in pretty output. These can also be supplied explicitly:
+
+```bash
+python3 display-info.py --stop-id 8313-ec0c55f5 --stop-name "Edendale Reserve" --pretty
+```
+
+Add `--debug` to print candidate selection, realtime requests, delay calculations, and display decisions to standard error. Realtime requests are skipped when `AT_API_KEY` is not set; the script then uses delays already stored in its database.
+
+# Todo
+
+- Document API signup and key retrieval process
+- Fix up the outputs for scripts, some going to both stdout and files
+- Sort out deployment
+- Add the output to a small display device (Raspberry Pi Pico or similar) for a bus stop display
+- do some sample outputs in the docs folder for the scripts, maybe a few sample runs with the output files and pretty output
 
 # Links
 
