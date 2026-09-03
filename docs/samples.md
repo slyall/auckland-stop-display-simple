@@ -2,6 +2,7 @@
 
 ## Stop ID lookup
 
+```bash
 $ curl -s "https://api.at.govt.nz/gtfs/v3/stops"   -H "Ocp-Apim-Subscription-Key: $AT_API_KEY"   | jq '.data[] | select(.attributes.stop_code == "8313")' 
 {
   "type": "stop",
@@ -16,9 +17,11 @@ $ curl -s "https://api.at.govt.nz/gtfs/v3/stops"   -H "Ocp-Apim-Subscription-Key
     "wheelchair_boarding": 0
   }
 }
+```
 
 ## Stop info via stop_id
 
+```bash
 $ curl -s "https://api.at.govt.nz/gtfs/v3/stops/7149-6d6d1e99"   -H "Ocp-Apim-Subscription-Key: $AT_API_KEY"   | jq . 
 {
   "data": {
@@ -35,10 +38,11 @@ $ curl -s "https://api.at.govt.nz/gtfs/v3/stops/7149-6d6d1e99"   -H "Ocp-Apim-Su
     }
   }
 }
-
+```
 
 ## List of trips for a stop soon (truncated)
 
+```bash
 $ curl -sG "https://api.at.govt.nz/gtfs/v3/stops/$STOP_ID/stoptrips"   -H "Ocp-Apim-Subscription-Key: $AT_API_KEY"   --data-urlencode "filter[date]=$(date +%F)"   --data-urlencode "filter[start_hour]=$(date +%H)" --data-urlencode "filter[hour_range]=1" | jq .
 {
   "data": [
@@ -82,11 +86,12 @@ $ curl -sG "https://api.at.govt.nz/gtfs/v3/stops/$STOP_ID/stoptrips"   -H "Ocp-A
         "trip_start_time": "11:57:00"
       }
     },
-
+```
 
 ## Realtime trip updates
 
- curl -sG "https://api.at.govt.nz/realtime/legacy/tripupdates?tripid=27-02707-44100-2-fe6656cf,1153-07005-42600-2-0a9d0b39,25-02505-44100-2-0cdf365d" -H "Ocp-Apim-Subscription-Key: $AT_API_KEY" | jq . 
+```bash
+ $ curl -sG "https://api.at.govt.nz/realtime/legacy/tripupdates?tripid=27-02707-44100-2-fe6656cf,1153-07005-42600-2-0a9d0b39,25-02505-44100-2-0cdf365d" -H "Ocp-Apim-Subscription-Key: $AT_API_KEY" | jq . 
 {
   "status": "OK",
   "response": {
@@ -198,3 +203,4 @@ $ curl -sG "https://api.at.govt.nz/gtfs/v3/stops/$STOP_ID/stoptrips"   -H "Ocp-A
   },
   "error": null
 }
+```
