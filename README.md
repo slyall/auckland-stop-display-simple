@@ -23,7 +23,9 @@ export AT_API_KEY="your-api-key-here"
 - [Notes](docs/notes.md) - Some testing command lines and the like. Maybe will add notes later on the scripts and how they work, but for now just some notes on the API and testing.
 
 
-# Bash/Curl Examples for using the API - See also [Sample API Queries and Responses](docs/samples.md)
+# Bash/Curl Examples for using the API 
+
+See also [Sample API Queries and Responses](docs/samples.md)
 
 ```bash
 # Export you key for later queries
