@@ -20,7 +20,7 @@ def test_make_display_rows_applies_delay_and_removes_old_trips(tmp_path):
     database = module.connect_database(tmp_path / "display.db")
     module.ingest_trips(database, [
         ("late-trip", now + timedelta(minutes=10), "24"),
-        ("old-trip", now - timedelta(minutes=11), "25"),
+        ("old-trip", now - timedelta(minutes=16), "25"),
     ])
     database.execute("UPDATE trips SET delay_seconds = 120 WHERE trip_id = 'late-trip'")
 
@@ -48,6 +48,33 @@ def test_make_display_rows_hides_arrivals_more_than_one_minute_old(tmp_path):
     module.ingest_trips(database, [("past-trip", now - timedelta(minutes=2), "24")])
 
     assert module.make_display_rows(database, now, {}) == []
+    database.close()
+
+
+def test_make_display_rows_applies_negative_delay(tmp_path):
+    module = load_module()
+    now = datetime(2026, 9, 3, 12, 0)
+    database = module.connect_database(tmp_path / "display.db")
+    module.ingest_trips(database, [("early-trip", now + timedelta(minutes=10), "24")])
+
+    rows = module.make_display_rows(database, now, {"early-trip": {
+        "delay": -590, "stop_delay": None, "next_stop_id": None,
+    }})
+
+    assert rows == [{"route_id": "24", "time": "12:00", "minutes": 0, "delay": -590}]
+    database.close()
+
+
+def test_make_display_rows_uses_stop_delay_only_at_that_stop(tmp_path):
+    module = load_module()
+    now = datetime(2026, 9, 3, 12, 0)
+    database = module.connect_database(tmp_path / "display.db")
+    module.ingest_trips(database, [("trip", now + timedelta(minutes=10), "24")])
+    update = {"delay": 120, "stop_delay": -590, "next_stop_id": "other-stop"}
+
+    rows = module.make_display_rows(database, now, {"trip": update}, stop_id="my-stop")
+
+    assert rows[0]["time"] == "12:12"
     database.close()
 
 

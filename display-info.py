@@ -14,6 +14,8 @@ from urllib import error, parse, request
 
 REALTIME_URL = "https://api.at.govt.nz/realtime/legacy/tripupdates"
 TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+LOOKBACK_MINUTES = 15
+LOOKAHEAD_MINUTES = 45
 
 
 def parse_trip_time(value, service_date, now):
@@ -52,11 +54,15 @@ def connect_database(path):
     return database
 
 
-def read_trip_file(path, now):
+def read_trip_file(path, now, return_stop_id=False):
     trips = []
+    stop_id = None
     with Path(path).open(newline="", encoding="utf-8") as source:
         for line_number, row in enumerate(csv.reader(source), 1):
             if not row or not any(field.strip() for field in row):
+                continue
+            if row[0].strip().startswith("# stop_id="):
+                stop_id = row[0].strip().split("=", 1)[1].strip() or None
                 continue
             if len(row) < 3:
                 raise ValueError(f"{path}:{line_number}: expected trip_id,route_id,arrival_time")
@@ -70,7 +76,7 @@ def read_trip_file(path, now):
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"{path}:{line_number}: invalid arrival time {arrival_time!r}") from exc
             trips.append((trip_id, scheduled_at, route_id))
-    return trips
+    return (trips, stop_id) if return_stop_id else trips
 
 
 def ingest_trips(database, trips):
@@ -109,7 +115,8 @@ def fetch_realtime(api_key, trip_ids):
         trip_id = trip.get("trip_id")
         if not trip_id:
             continue
-        delay = trip_update.get("delay", 0)
+        trip_delay = int(trip_update.get("delay", 0) or 0)
+        stop_delay = None
         next_stop_id = None
         stop_updates = trip_update.get("stop_time_update", [])
         if isinstance(stop_updates, dict):
@@ -120,14 +127,18 @@ def fetch_realtime(api_key, trip_ids):
             if stop_delay is None:
                 stop_delay = stop_updates[0].get("departure", {}).get("delay")
             if stop_delay is not None:
-                delay = stop_delay
-        updates[trip_id] = {"delay": int(delay or 0), "next_stop_id": next_stop_id}
+                stop_delay = int(stop_delay)
+        updates[trip_id] = {
+            "delay": trip_delay,
+            "stop_delay": stop_delay,
+            "next_stop_id": next_stop_id,
+        }
     return updates
 
 
 def select_trip_ids(database, now):
-    lower = (now - timedelta(minutes=10)).strftime(TIME_FORMAT)
-    upper = (now + timedelta(minutes=30)).strftime(TIME_FORMAT)
+    lower = (now - timedelta(minutes=LOOKBACK_MINUTES)).strftime(TIME_FORMAT)
+    upper = (now + timedelta(minutes=LOOKAHEAD_MINUTES)).strftime(TIME_FORMAT)
     rows = database.execute(
         "SELECT trip_id FROM trips WHERE completed = 0 AND scheduled_at BETWEEN ? AND ?",
         (lower, upper),
@@ -138,10 +149,11 @@ def select_trip_ids(database, now):
 def make_display_rows(database, now, updates, stop_id=None):
     database.executemany(
         "UPDATE trips SET delay_seconds = ?, next_stop_id = ?, last_checked_at = ? WHERE trip_id = ?",
-        [(update["delay"], update["next_stop_id"], now.strftime(TIME_FORMAT), trip_id)
+        [(update["stop_delay"] if stop_id and update["next_stop_id"] == stop_id and update["stop_delay"] is not None
+          else update["delay"], update["next_stop_id"], now.strftime(TIME_FORMAT), trip_id)
          for trip_id, update in updates.items()],
     )
-    cutoff = (now - timedelta(minutes=10)).strftime(TIME_FORMAT)
+    cutoff = (now - timedelta(minutes=LOOKBACK_MINUTES)).strftime(TIME_FORMAT)
     database.execute("DELETE FROM trips WHERE scheduled_at < ? OR completed = 1", (cutoff,))
     rows = database.execute(
         """
@@ -151,7 +163,7 @@ def make_display_rows(database, now, updates, stop_id=None):
         ORDER BY julianday(scheduled_at) + delay_seconds / 86400.0
         LIMIT 12
         """,
-        (cutoff, (now + timedelta(minutes=40)).strftime(TIME_FORMAT)),
+        (cutoff, (now + timedelta(minutes=LOOKAHEAD_MINUTES)).strftime(TIME_FORMAT)),
     ).fetchall()
     result = []
     for row in rows:
@@ -204,12 +216,13 @@ def main():
     args = parse_args()
     now = datetime.now().replace(microsecond=0)
     try:
-        trips = read_trip_file(args.input, now)
+        trips, file_stop_id = read_trip_file(args.input, now, return_stop_id=True)
+        stop_id = args.stop_id or file_stop_id
         with connect_database(args.database) as database:
             ingest_trips(database, trips)
             candidate_ids = [trip_id for trip_id, _, _ in trips] if args.once else select_trip_ids(database, now)
             updates = fetch_realtime(os.environ.get("AT_API_KEY", ""), candidate_ids) if os.environ.get("AT_API_KEY") else {}
-            rows = make_display_rows(database, now, updates, args.stop_id)
+            rows = make_display_rows(database, now, updates, stop_id)
             database.commit()
     except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
         print(str(exc), file=sys.stderr)

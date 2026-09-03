@@ -86,7 +86,12 @@ This returns the next trips in a simple CSV-like format using the trip ID, short
 1279-02401-75480-2-cc67cdfd,1279,21:16:00
 ```
 
-The display stage reads this file and writes `display.csv` with `route_id,time,minutes`.
+The output also includes the stop ID as metadata so `display-info.py` can apply a stop-specific
+realtime delay only when the feed is reporting that same stop. The display stage reads this file
+and writes `display.csv` with `route_id,time,minutes`.
+
+The display stage checks trips scheduled from 15 minutes ago through 45 minutes ahead. Realtime
+delays are signed seconds: a negative delay moves the estimated arrival earlier than scheduled.
 
 If you want the full AT API JSON payload instead, use the `--json` flag:
 

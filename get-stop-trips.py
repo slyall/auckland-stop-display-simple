@@ -93,7 +93,7 @@ def fetch_stop_trips(api_key: str, stop_id: str, date_value: str, start_hour: in
         raise RuntimeError(f"Invalid JSON returned from AT API: {exc}") from exc
 
 
-def format_stop_trips(payload, json_output=False):
+def format_stop_trips(payload, json_output=False, stop_id=None):
     """Format stop-trip data for console output.
 
     Default output is a compact CSV-like format with trip id, route id, and arrival time.
@@ -102,7 +102,7 @@ def format_stop_trips(payload, json_output=False):
     if json_output:
         return json.dumps(payload, indent=2)
 
-    lines = []
+    lines = [f"# stop_id={stop_id}"] if stop_id else []
     for item in payload.get("data", []):
         attributes = item.get("attributes", {})
         trip_id = attributes.get("trip_id", "")
@@ -162,7 +162,7 @@ def main():
         return 1
 
     data = payload.get("data", [])
-    formatted_output = format_stop_trips(payload, json_output=args.json)
+    formatted_output = format_stop_trips(payload, json_output=args.json, stop_id=stop_id)
 
     if args.output:
         output_path = Path(args.output)

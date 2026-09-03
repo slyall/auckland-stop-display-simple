@@ -77,6 +77,15 @@ def test_format_stop_trips_defaults_to_compact_trip_fields():
     )
 
 
+def test_format_stop_trips_includes_stop_id_metadata():
+    module = load_module()
+    payload = {"data": []}
+
+    assert module.format_stop_trips(payload, stop_id="8313-ec0c55f5") == (
+        "# stop_id=8313-ec0c55f5"
+    )
+
+
 def test_format_stop_trips_json_output_keeps_full_api_payload():
     module = load_module()
     payload = {
