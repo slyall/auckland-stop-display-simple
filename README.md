@@ -6,26 +6,33 @@ A series of scripts to get the next buses due at a bus stop in Auckland, New Zea
 
 ![Halsey Street Pretty Display output](docs/halsey-pretty.png)
 
-# API setup using Auckland transport site
+# API setup using Auckland Transport Developer site
 
-TODO
+You will need an API key to access the Auckland Transport API. You can get one from the [Auckland Transport Developer Portal](https://dev-portal.at.govt.nz/). 
 
-You will need an API key to access the Auckland Transport API. You can get one from the [Auckland Transport Developer Portal](https://dev-portal.at.govt.nz/). Once you have your key, export it as an environment variable:
+1. Create an account on the portal and log in.
+2. Got to the "Products" section and selection "Public Transport Dev" 
+3. Create a subscription (the limit seems to be just one) 
+4. You can go to the "Profile" page see see you API Key. Copy it to your clipboard. 
+
+Once you have your key, export it as an environment variable:
 
 ```bash
 export AT_API_KEY="your-api-key-here"
 ```
-
 
 # Docs
 
 - README.md - This file
 - [Design Notes](docs/design.md) - Design notes for the scripts
 - [Sample API Queries and Responses](docs/samples.md) - Sample API queries and responses
-- [Notes](docs/notes.md) - Some testing command lines and the like. Maybe will add notes later on the scripts and how they work, but for now just some notes on the API and testing.
+- [Notes](docs/notes.txt) - Some testing command lines and the like. Maybe will add notes later on the scripts and how they work, but for now just some notes on the API and testing.
+- [Infodump](docs/infodump-api.txt) - Some notes I copied from the docs and AI investigation of other apps.
 
 
 # Bash/Curl Examples for using the API 
+
+This application and the curl examples uses Auckland Transport's General Transit Feed V3 APIs (gtfs v3) to get static information. Relatime information is from their "Realtime compat" API. See the URLs paths. These were the APIs live in Sept 2026 when this was written.
 
 See also [Sample API Queries and Responses](docs/samples.md)
 
@@ -192,11 +199,11 @@ Add `--debug` to print candidate selection, realtime requests, delay calculation
 
 # Todo
 
-- Document API signup and key retrieval process
 - Fix up the outputs for scripts, some going to both stdout and files
-- Sort out deployment
 - Add the output to a small display device (Raspberry Pi Pico or similar) for a bus stop display
 - do some sample outputs in the docs folder for the scripts, maybe a few sample runs with the output files and pretty output
+- create and publish container (with cron etc) so it can be run easily ( with some instructions ) 
+
 
 # Links
 
